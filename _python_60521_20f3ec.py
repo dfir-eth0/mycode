@@ -1,25 +1,35 @@
 #!/usr/bin/env python3
-# MIT License
+# ============================================================
+# RESTRICTED USE LICENSE - FOR AUTHORIZED SECURITY TESTING ONLY
+# ============================================================
 # 
 # Copyright (c) 2025 dfir-eth0
 # 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
+# Permission is granted to use, copy, modify, and distribute this software
+# ONLY if ALL of the following conditions are met:
 # 
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
+# 1. The software is used ONLY for:
+#    - Testing systems you OWN
+#    - Testing systems with EXPLICIT WRITTEN PERMISSION from the owner
+#    - Educational purposes in ISOLATED LAB environments
 # 
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# 2. ANY use of this software must include this license and legal notice
+# 
+# 3. You MAY NOT use this software:
+#    - Against any system without authorization
+#    - To violate any laws (including Ireland Criminal Justice Act 2017)
+#    - In any commercial product without separate licensing
+# 
+# 4. By using this software you confirm you have the RIGHT to scan the target
+# 
+# DISCLAIMER: This software is for LEGAL USE ONLY. The author assumes NO 
+# LIABILITY for any illegal use. Unauthorized scanning violates:
+# - Ireland: Criminal Justice Act 2017 (Sections 2, 3, 6)
+# - UK: Computer Misuse Act 1990
+# - EU: NIS Directive
+# 
+# VIOLATION OF THESE TERMS TERMINATES YOUR LICENSE IMMEDIATELY.
+# ============================================================
 
 import asyncio
 import socket
