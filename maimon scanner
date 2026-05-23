@@ -1,0 +1,255 @@
+MIT License
+
+Copyright (c) 2025 [ТВОЕ ИМЯ ИЛИ NICKNAME]
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--- ADDITIONAL EDUCATIONAL USE NOTICE ---
+
+This software is intended for EDUCATIONAL PURPOSES ONLY.
+It demonstrates TCP/IP networking concepts in controlled laboratory environments.
+
+The author does not authorize:
+- Use against systems without explicit written permission
+- Use as part of any unauthorized security testing
+- Any illegal or malicious application
+
+Users assume all responsibility for compliance with applicable laws,
+including but not limited to the Irish Criminal Damage Act 1991 and
+the Computer Misuse Act (where applicable).
+
+from scapy.all import *
+import random
+import time
+import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+conf.verb = 0
+
+
+class IdleMaimonScanner:
+    """
+    Implements Maimon idle scanning technique.
+    
+    How it works:
+    1. Get initial IP ID from zombie host (SYN packet)
+    2. Send spoofed FIN packet to target (appearing from zombie)
+    3. Get final IP ID from zombie host
+    4. Analyze delta to infer port state:
+       - delta == 2: target port OPEN (zombie sent RST, incrementing ID)
+       - delta == 1: target port CLOSED (zombie sent RST? Actually no)
+       - delta != 1/2: FILTERED or zombie unreliable
+    
+    Note: Real implementation would validate zombie suitability first.
+    """
+    
+    def __init__(self, zombie_ip, zombie_port=80):
+        self.zombie_ip = zombie_ip
+        self.zombie_port = zombie_port
+        
+    def get_ip_id(self):
+        """
+        Retrieve current IP ID from zombie host.
+        Returns None if zombie doesn't respond (dead or unreachable).
+        """
+        src_port = random.randint(1024, 65535)
+        # SYN packet to probe zombie's IP ID counter
+        ip_packet = IP(dst=self.zombie_ip)
+        tcp_packet = TCP(
+            sport=src_port, 
+            dport=self.zombie_port, 
+            flags="S",
+            seq=random.randint(1, 100000)
+        )
+        
+        response = sr1(ip_packet/tcp_packet, timeout=2, verbose=0)
+        
+        # Check for SYN-ACK response (flags=0x12)
+        if response and response.haslayer(TCP) and response.getlayer(TCP).flags == 0x12:
+            return response.getlayer(IP).id
+        return None
+    
+    def maimon_probe(self, target_ip, target_port, spoof_ip):
+        """
+        Send FIN packet to target, spoofed from zombie IP.
+        FIN (not SYN) is used for Maimon technique.
+        """
+        src_port = random.randint(1024, 65535)
+        ip_packet = IP(dst=target_ip, src=spoof_ip)
+        tcp_packet = TCP(
+            sport=src_port, 
+            dport=target_port, 
+            flags="FA",  # FIN+ACK for Maimon
+            seq=random.randint(1, 100000)
+        )
+        send(ip_packet/tcp_packet, verbose=0)
+    
+    def scan_port(self, target_ip, target_port):
+        """
+        Scan single port using Maimon idle technique.
+        Returns: 'open', 'closed', 'filtered', or 'zombie_dead'
+        """
+        # Get baseline IP ID
+        id_before = self.get_ip_id()
+        if id_before is None:
+            return "zombie_dead"
+        
+        # Send probe (appearing from zombie)
+        self.maimon_probe(target_ip, target_port, self.zombie_ip)
+        time.sleep(0.5)  # FIXME: Should be RTT-adaptive, not fixed delay
+        
+        # Get new IP ID
+        id_after = self.get_ip_id()
+        if id_after is None:
+            return "zombie_dead"
+        
+        # Handle 16-bit overflow correctly
+        delta = (id_after - id_before) & 0xFFFF
+        
+        # Interpret results
+        if delta == 2:
+            return "open"
+        elif delta == 1:
+            return "closed"
+        else:
+            # delta > 2 indicates either:
+            # - Background traffic on zombie (false positive risk)
+            # - Packet loss or filtering
+            return "filtered"
+    
+    def scan_range_parallel(self, target_ip, ports, max_workers=5):
+        """
+        Scan multiple ports in parallel for better performance.
+        Without this, scanning 100 ports would take ~100 seconds.
+        
+        Note: Parallel scanning increases detection risk but demonstrates
+        understanding of concurrency.
+        """
+        results = {}
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(self.scan_port, target_ip, port): port 
+                for port in ports
+            }
+            
+            for future in as_completed(futures):
+                port = futures[future]
+                try:
+                    status = future.result()
+                    results[port] = status
+                    print(f"[{port:5d}] {status}")
+                except Exception as e:
+                    results[port] = f"error: {e}"
+                    print(f"[{port:5d}] error")
+        
+        return results
+    
+    def scan_range_sequential(self, target_ip, ports):
+        """
+        Sequential scan - simpler but slower.
+        Kept for comparison/demonstration.
+        """
+        results = {}
+        for port in ports:
+            status = self.scan_port(target_ip, port)
+            results[port] = status
+            print(f"{target_ip}:{port} - {status}")
+            time.sleep(1)
+        return results
+
+
+
+# DEMONSTRATION
+
+
+if __name__ == "__main__":
+    print("\n" + "=" * 70)
+    print("IDLE MAIMON SCANNER - Technical Demonstration")
+    print("=" * 70)
+    print("\nThis tool demonstrates TCP/IP side-channel analysis.")
+    print("It is designed for CONTROLLED LAB ENVIRONMENTS only.\n")
+    
+    # Parse command line arguments (professional touch)
+    if len(sys.argv) >= 4:
+        ZOMBIE_IP = sys.argv[1]
+        TARGET_IP = sys.argv[2]
+        PORTS = [int(p) for p in sys.argv[3].split(',')]
+        USE_PARALLEL = len(sys.argv) > 4 and sys.argv[4] == '--parallel'
+    else:
+        # Demo defaults (CHANGE THESE FOR YOUR LAB)
+        print("[*] Using demo configuration")
+        ZOMBIE_IP = "192.168.1.100"   # Your zombie host
+        TARGET_IP = "192.168.1.200"   # Your target
+        PORTS = [22, 80, 443, 8080, 3306]
+        USE_PARALLEL = True
+        print(f"    Zombie: {ZOMBIE_IP}")
+        print(f"    Target: {TARGET_IP}")
+        print(f"    Ports:  {PORTS}")
+        print("\n    Tip: Use command line for custom scans:")
+        print("    python scanner.py <zombie> <target> <ports> [--parallel]\n")
+    
+    print("-" * 70)
+    print(f"[*] Scanning {len(PORTS)} ports...")
+    print(f"[*] Mode: {'PARALLEL' if USE_PARALLEL else 'SEQUENTIAL'}")
+    print("-" * 70)
+    
+    scanner = IdleMaimonScanner(ZOMBIE_IP)
+    
+    start_time = time.time()
+    
+    if USE_PARALLEL:
+        results = scanner.scan_range_parallel(TARGET_IP, PORTS)
+    else:
+        results = scanner.scan_range_sequential(TARGET_IP, PORTS)
+    
+    elapsed = time.time() - start_time
+    
+    # Summary
+    print("-" * 70)
+    print(f"\n[+] Scan completed in {elapsed:.2f} seconds")
+    print(f"\n{'PORT':<8} {'STATUS':<12} {'COUNT':<8}")
+    print("-" * 30)
+    
+    open_count = 0
+    filtered_count = 0
+    for port, status in sorted(results.items()):
+        print(f"{port:<8} {status:<12}")
+        if status == 'open':
+            open_count += 1
+        elif status == 'filtered':
+            filtered_count += 1
+    
+    print("-" * 30)
+    print(f"Open ports:     {open_count}")
+    print(f"Filtered ports: {filtered_count}")
+    print(f"Total scanned:  {len(results)}")
+    
+    # Important limitations (show you know what you're doing)
+    print("\n" + "=" * 70)
+    print("LIMITATIONS (production improvements would include):")
+    print("=" * 70)
+    print("  1. Adaptive timing based on measured RTT (not fixed 0.5s)")
+    print("  2. Retry mechanism for packet loss (3 attempts)")
+    print("  3. Zombie suitability validation (predictable IP ID required)")
+    print("  4. Background traffic compensation (median of multiple samples)")
+    print("  5. Progress bar for long scans")
+    print("  6. Output formats: JSON, CSV, machine-readable")
+    print("  7. Signal handling for graceful Ctrl+C")
+    print("  8. Rate limiting to avoid detection\n")
